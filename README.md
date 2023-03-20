@@ -5,6 +5,9 @@
 ## Business Problem
 
 ## Architecture
+- Technologies used:
+    - General FOSS tools: Terraform, docker, postgres, prefect (workflow orchestration), dbt (analytics engineering / ETL), spark
+    - GCP: GCS, BQ, Looker
 
 ## Data sources
 - Toronto bike share data: https://open.toronto.ca/dataset/bike-share-toronto-ridership-data/

@@ -14,20 +14,24 @@ base_url = "https://ckan0.cf.opendata.inter.prod-toronto.ca"
 url = base_url + "/api/3/action/package_show"
 params = {"id": "bike-share-toronto-ridership-data"}
 
-def get_toronto_data(params: dict) -> json
+
+def get_toronto_data(params: dict) -> json:
     package = requests.get(url, params=params).json()
 
     for idx, resource in enumerate(package["result"]["resources"]):
-    # To get metadata for non datastore_active resources:
-    if not resource["datastore_active"]:
-        url = base_url + "/api/3/action/resource_show?id=" + resource["id"]
-        resource_metadata = requests.get(url).json()
+        # To get metadata for non datastore_active resources:
+        if not resource["datastore_active"]:
+            url = base_url + "/api/3/action/resource_show?id=" + resource["id"]
+            resource_metadata = requests.get(url).json()
+    return resource_metadata
+
 
 # Define a function to download the data from the URL and save it to a file
 def download_file(url, filename):
     response = requests.get(url)
     with open(filename, "wb") as f:
         f.write(response.content)
+
 
 # Define a function to save each tab in an Excel file as a CSV file
 def excel_to_csv(filename):
@@ -40,6 +44,7 @@ def excel_to_csv(filename):
         # Save the sheet as a CSV file
         csv_filename = f"{sheet_name}.csv"
         df.to_csv(csv_filename, index=False)
+
 
 # Load the JSON data
 with open("data.json", "r") as f:

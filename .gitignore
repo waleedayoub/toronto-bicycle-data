@@ -1,0 +1,11 @@
+# Data
+data/
+
+# Environments
+deproject/
+
+# Notes
+scratchnotes.md
+
+# MacOS
+.DS_Store

@@ -3,9 +3,12 @@
 - This is my submission for the [final project](https://github.com/DataTalksClub/data-engineering-zoomcamp/blob/main/week_7_project/README.md) of the datatalks club data engineering zoomcamp
 
 ## Project Description
-- The goal of this project is to create a comparative analytical analysis of a few bike share programs in Canada
-- Given data availability, these programs will be those located in 3 cities: Toronto, Montreal and Vancouver
-- See Data sources below
+- The goal of this project is to create a comparative analytical analysis of a few bike share programs in Canada.
+- Given data availability, these programs will be those located in 3 cities: Toronto, Montreal and Vancouver. The initial focus of this analysis will be the city of Toronto, with successive implementations to include the other two cities as well.
+- For the city of Toronto, the project will consist of 2 main pipelines:
+    - a batch pipeline that runs monthly and sources data from ridership data
+    - a near real time pipeline that runs every 5 minutes and sources data from the gbfs API
+    - See data sources below for more information
 
 ## Architecture
 - Initially, this project will deal with data in batch as the primary data sources we are dealing with get updated monthly

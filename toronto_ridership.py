@@ -97,6 +97,8 @@ def extract_toronto_ridership_data(package: json, file_location: str):
             elif file_format == "ZIP":
                 extract_zip(filename, f"{file_location}/{year}")
 
+            # Clean the headers of the files and prepare them for upload to gcs
+
 
 # create a function to load data to gcs from local
 def load_to_gcs(file_location: str):

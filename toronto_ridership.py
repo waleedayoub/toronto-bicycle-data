@@ -1,19 +1,28 @@
 import os
 import json
 import requests
-import pandas as pd
 import hashlib
 import zipfile
 import shutil
 
+import pandas as pd
+
+from prefect import task, flow
+from prefect_gcp import GcsBucket
+from prefect_gcp import GcpCredentials
+from prefect_gcp.bigquery import bigquery_load_cloud_storage
+from prefect.tasks import task_input_hash
+
 
 # get a json object from the api url
 def fetch_api(url: str, params: dict) -> json:
+    """Fetch data from an API and return a JSON object"""
     return requests.get(url, params=params).json()
 
 
 # download data to a file from a url
 def download_file(url: str, filename: str) -> None:
+    """Download a file from a URL and save it to disk"""
     response = requests.get(url, stream=True)
     try:
         with response as r:
@@ -28,6 +37,7 @@ def download_file(url: str, filename: str) -> None:
 
 # Define a function to save each tab in an Excel file as a CSV file
 def excel_to_csv(filename: str, file_location: str) -> None:
+    """Go through each worksheet in an Excel workbook and convert each sheet to a CSV file"""
     # Load the Excel file into a Pandas dataframe
     xl = pd.ExcelFile(f"{file_location}/{filename}")
     # Loop through each sheet in the Excel file
@@ -40,6 +50,7 @@ def excel_to_csv(filename: str, file_location: str) -> None:
 
 
 def extract_zip(filename: str, file_location: str) -> None:
+    """Extract a zip file to a temporary directory and then move the files to file_location"""
     with zipfile.ZipFile(f"{file_location}/{filename}", "r") as zip_ref:
         temp_dir = os.path.join(file_location, "temp")
         zip_ref.extractall(temp_dir)
@@ -54,6 +65,8 @@ def extract_zip(filename: str, file_location: str) -> None:
 
 # Define a function to get the data from the url
 def extract_toronto_ridership_data(package: json, file_location: str):
+    """Extract the data from the Toronto ridership data package"""
+    data_dict = {}
     for _, resource in enumerate(package["result"]["resources"]):
         # To get metadata for non datastore_active resources:
         if not resource["datastore_active"]:
@@ -77,15 +90,18 @@ def extract_toronto_ridership_data(package: json, file_location: str):
             # Check if file already exists and hasn't changed since last download
             file_path = f"{file_location}/{year}/{filename}"
             if os.path.exists(file_path):
+                # check hash of existing filename
                 with open(file_path, "rb") as f:
                     old_hash = hashlib.sha256(f.read()).hexdigest()
+                # check hash of incoming file
                 with requests.get(url, stream=True) as r:
                     new_hash = hashlib.sha256(r.content).hexdigest()
+                # compare hashes to see if file has changed
                 if old_hash == new_hash:
                     print(
                         f"File {filename} already exists and hasn't changed since last download."
                     )
-                    continue
+                    continue  # break out of loop and move to next resource
 
             # Download the file
             download_file(url, f"{file_location}/{year}/{filename}")
@@ -97,13 +113,15 @@ def extract_toronto_ridership_data(package: json, file_location: str):
             elif file_format == "ZIP":
                 extract_zip(filename, f"{file_location}/{year}")
 
-            # Clean the headers of the files and prepare them for upload to gcs
+            # add information to dictionary
+            data_dict[year] = (file_location, filename)
+    return data_dict
 
 
 # create a function to load data to gcs from local
-def load_to_gcs(file_location: str):
-    print(file_location)
-    pass
+def load_to_gcs(year: str, file_location: str, filename: str) -> Path:
+    """Convert local data to parquet and upload to a GCS bucket, return path to the bucket"""
+    print(f"uploading data to gcs for {file_location}/{year}/{filename}")
 
 
 # create a function to load data to bq from gcs
@@ -127,6 +145,11 @@ if __name__ == "__main__":
     # this function should be usable for all ckan hosted packages
     package = fetch_api(package_url, params)
     # extract data from the json objects and perform some data cleanup
-    extract_toronto_ridership_data(package, file_location)
+    data_dict = extract_toronto_ridership_data(package, file_location)
     # load data from local to GCS bucket
+    for year, (file_location, filenam) in data_dict.items():
+        # only load data for years 2016 or greater
+        if year.isdigit() and int(year) >= 2016:
+            gcs_path = load_to_gcs(year, file_location, filename)
+        # load_to_bq(gcs_path)
     # load_to_gcs(file_location)

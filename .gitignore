@@ -9,3 +9,9 @@ scratchnotes.md
 
 # MacOS
 .DS_Store
+
+# Terraform
+*.tfstate
+*.tfstate.*
+**.terraform
+**.terraform.lock.*

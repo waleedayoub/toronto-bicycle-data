@@ -1,6 +1,6 @@
 
 locals {
-  data_lake_bucket = "dtc_data_lake"
+  data_lake_bucket = "dtc-toronto-bikeshare"
 }
 
 variable "project" {
@@ -21,6 +21,6 @@ variable "storage_class" {
 variable "BQ_DATASET" {
   description = "BigQuery Dataset that raw data (from GCS) will be written to"
   type        = string
-  default     = "trips_data_all"
+  default     = "toronto_bikeshare"
 }
 

@@ -1,11 +1,13 @@
 # Data
 data/
+*.parquet
 
 # Environments
 deproject/
 
-# Notes
+# Notes & code
 scratchnotes.md
+testgcs.py
 
 # MacOS
 .DS_Store

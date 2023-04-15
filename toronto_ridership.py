@@ -12,9 +12,11 @@ from datetime import timedelta
 import pandas as pd
 
 from prefect import task, flow
-from prefect_gcp import GcsBucket
+
+# from prefect_gcp import GcsBucket
 from prefect_gcp import GcpCredentials
 from prefect_gcp.bigquery import bigquery_load_cloud_storage
+from prefect_gcp.cloud_storage import GcsBucket
 from prefect.tasks import task_input_hash
 
 
@@ -26,7 +28,7 @@ def fetch_api(url: str, params: dict) -> json:
 
 
 # download data to a file from a url
-@task(name="download_file", log_prints=True, retries=3, retry_delay_seconds=30)
+# @task(name="download_file", log_prints=True, retries=3, retry_delay_seconds=30)
 def download_file(url: str, filename: str) -> None:
     """Download a file from a URL and save it to disk"""
     response = requests.get(url, stream=True)
@@ -42,7 +44,7 @@ def download_file(url: str, filename: str) -> None:
 
 
 # Define a function to save each tab in an Excel file as a CSV file
-@task(name="excel_to_csv", log_prints=True, retries=3, retry_delay_seconds=30)
+# @task(name="excel_to_csv", log_prints=True, retries=3, retry_delay_seconds=30)
 def excel_to_csv(filename: str, file_location: str) -> None:
     """Go through each worksheet in an Excel workbook and convert each sheet to a CSV file"""
     # Load the Excel file into a Pandas dataframe
@@ -57,7 +59,7 @@ def excel_to_csv(filename: str, file_location: str) -> None:
 
 
 # task that extracts zip files (should move this to utils.py)
-@task(name="extract_zip", log_prints=True, retries=3, retry_delay_seconds=30)
+# @task(name="extract_zip", log_prints=True, retries=3, retry_delay_seconds=30)
 def extract_zip(filename: str, file_location: str) -> None:
     """Extract a zip file to a temporary directory and then move the files to file_location"""
     with zipfile.ZipFile(f"{file_location}/{filename}", "r") as zip_ref:
@@ -78,8 +80,8 @@ def extract_zip(filename: str, file_location: str) -> None:
     log_prints=True,
     retries=3,
     retry_delay_seconds=30,
-    cache_key_fn=task_input_hash,
-    cache_expiration=timedelta(days=1),
+    # cache_key_fn=task_input_hash,
+    # cache_expiration=timedelta(days=1),
 )
 def download_toronto_ridership_data(package: json, file_location: str):
     """Extract the data from the Toronto ridership data package"""
@@ -100,12 +102,16 @@ def download_toronto_ridership_data(package: json, file_location: str):
                 f"we are processing data for url: {url}, year: {year}, format: {file_format} and filename: {filename}"
             )
 
+            # add information to dictionary for later reference
+            data_dict[year] = (file_location, filename)
+
             # Create a directory for the year if it doesn't exist
             if not os.path.exists(f"{file_location}/{year}"):
                 os.makedirs(f"{file_location}/{year}")
 
             # Check if file already exists and hasn't changed since last download
             file_path = f"{file_location}/{year}/{filename}"
+            # add information to dictionary
             if os.path.exists(file_path):
                 # check hash of existing filename
                 with open(file_path, "rb") as f:
@@ -130,8 +136,6 @@ def download_toronto_ridership_data(package: json, file_location: str):
             elif file_format == "ZIP":
                 extract_zip(filename, f"{file_location}/{year}")
 
-            # add information to dictionary
-            data_dict[year] = (file_location, filename)
     return data_dict
 
 
@@ -139,17 +143,29 @@ def download_toronto_ridership_data(package: json, file_location: str):
 @task(name="load_to_gcs", log_prints=True, retries=3, retry_delay_seconds=30)
 def load_to_gcs(file_location: str, year: str, file: str) -> Path:
     """Convert local data to parquet and upload to a GCS bucket, return path to the bucket"""
-    local_file_path = Path("data/{file_location}/{year}/{file}")
-    df = pd.read_csv(local_file_path)
-    # df.to_parquet(local_file_path)
-    gcs_path = f"data/{file_location}/{year}/{file}.parquet"
-
     print(f"uploading data to gcs for {file_location}/{year}/{file}")
+
+    local_file_path = Path(f"{file_location}/{year}/{file}")
+
+    try:
+        df = pd.read_csv(local_file_path)
+    except Exception as e:
+        print(f"Error while doing read_csv() on file {local_file_path}: {e}")
+        return None
+    # df.to_parquet(local_file_path)
+    gcs_path = f"{file_location}/{year}/{file}.parquet"
+
     # upload directly from dataframe and skip the write local step:
     gcs_connection_block = GcsBucket.load("toronto-bikeshare-gcs")
-    gcs_connection_block.upload_from_dataframe(
-        df=df, to_path=gcs_path, serialization_format="parquet"
-    )
+    try:
+        gcs_connection_block.upload_from_dataframe(
+            df=df, to_path=gcs_path, serialization_format="parquet"
+        )
+    except Exception as e:
+        print(
+            f"Error while doing upload_from_dataframe on {local_file_path} dataframe to gcs: {e}"
+        )
+        return None
     # if the above doesn't work, uncomment the step where you write the file to parquet locally
     # gcs_connection_block.upload_from_path(from_path=local_file_path, to_path=gcs_path)
 
@@ -163,8 +179,8 @@ def load_to_bq(file_path: Path):
     # load gcp credentials
     gcp_credentials_block = GcpCredentials.load("de-gcp-creds")
     result = bigquery_load_cloud_storage(
-        dataset="",
-        table="",
+        dataset="toronto_bikeshare",
+        table="stg_toronto_ridership",
         uri=file_path,
         gcp_credentials=gcp_credentials_block.get_credentials_from_service_account(),
     )
@@ -187,8 +203,9 @@ def toronto_ridership_main_flow(
         if year.isdigit() and int(year) >= 2016:
             for file in os.listdir(f"{file_location}/{year}"):
                 if file.endswith(".csv") or file.endswith(".zip") and file != filename:
-                    gcs_path = load_to_gcs(file_location, year, file)
-                    load_to_bq(gcs_path)
+                    # gcs_path = load_to_gcs(file_location, year, file)
+                    # load_to_bq(gcs_path)
+                    load_to_gcs(file_location, year, file)
 
 
 if __name__ == "__main__":

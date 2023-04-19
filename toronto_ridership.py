@@ -2,8 +2,6 @@ import os
 import json
 import requests
 import hashlib
-import zipfile
-import shutil
 
 from pathlib import Path
 
@@ -19,59 +17,14 @@ from prefect_gcp.bigquery import bigquery_load_cloud_storage
 from prefect_gcp.cloud_storage import GcsBucket
 from prefect.tasks import task_input_hash
 
+from utils import download_file, excel_to_csv, extract_zip
+
 
 # get a json object from the api url
 @task(name="fetch_api", log_prints=True, retries=3, retry_delay_seconds=30)
 def fetch_api(url: str, params: dict) -> json:
     """Fetch data from an API and return a JSON object"""
     return requests.get(url, params=params).json()
-
-
-# download data to a file from a url
-# @task(name="download_file", log_prints=True, retries=3, retry_delay_seconds=30)
-def download_file(url: str, filename: str) -> None:
-    """Download a file from a URL and save it to disk"""
-    response = requests.get(url, stream=True)
-    try:
-        with response as r:
-            r.raise_for_status()
-            with open(filename, "wb") as f:
-                for chunk in r.iter_content(chunk_size=8192):
-                    f.write(chunk)
-    except requests.exceptions.RequestException as err:
-        print(f"Error downloading file {url}: {err}")
-        raise
-
-
-# Define a function to save each tab in an Excel file as a CSV file
-# @task(name="excel_to_csv", log_prints=True, retries=3, retry_delay_seconds=30)
-def excel_to_csv(filename: str, file_location: str) -> None:
-    """Go through each worksheet in an Excel workbook and convert each sheet to a CSV file"""
-    # Load the Excel file into a Pandas dataframe
-    xl = pd.ExcelFile(f"{file_location}/{filename}")
-    # Loop through each sheet in the Excel file
-    for sheet_name in xl.sheet_names:
-        # Load the sheet into a Pandas dataframe
-        df = xl.parse(sheet_name)
-        # Save the sheet as a CSV file
-        csv_filename = f"{sheet_name}.csv"
-        df.to_csv(f"{file_location}/{csv_filename}", index=False)
-
-
-# task that extracts zip files (should move this to utils.py)
-# @task(name="extract_zip", log_prints=True, retries=3, retry_delay_seconds=30)
-def extract_zip(filename: str, file_location: str) -> None:
-    """Extract a zip file to a temporary directory and then move the files to file_location"""
-    with zipfile.ZipFile(f"{file_location}/{filename}", "r") as zip_ref:
-        temp_dir = os.path.join(file_location, "temp")
-        zip_ref.extractall(temp_dir)
-        # Move the extracted files to file_location
-        for root, dirs, files in os.walk(temp_dir):
-            for file in files:
-                shutil.move(os.path.join(root, file), os.path.join(file_location, file))
-
-        # Remove the temporary directory
-        # os.rmdir(temp_dir)
 
 
 # Define a function to get the data from the url

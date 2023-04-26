@@ -3,27 +3,33 @@
 - This is my submission for the [final project](https://github.com/DataTalksClub/data-engineering-zoomcamp/blob/main/week_7_project/README.md) of the datatalks club data engineering zoomcamp
 
 ## Project Description
-- The goal of this project is to create a comparative analytical analysis of a few bike share programs in Canada.
-- Given data availability, these programs will be those located in 3 cities: Toronto, Montreal and Vancouver. The initial focus of this analysis will be the city of Toronto, with successive implementations to include the other two cities as well.
-- For the city of Toronto, the project will consist of 2 main pipelines:
-    - a batch pipeline that runs monthly and sources data from ridership data
-    - a near real time pipeline that runs every 5 minutes and sources data from the gbfs API
-    - See data sources below for more information
+- The goal of this project is to examine historical bike share ridership going as far back as 2016 in the city of Toronto, Ontario.
+- The city of Toronto has an open data sharing mandate, and all bike share data can be found here: https://open.toronto.ca/dataset/bike-share-toronto/
+- Unfortunately, the data is not consistently named or labeled across years (2014-2022, inclusively), so there is a need to perform quite a bit of processing to handle it.
+    - For example, in some years, data is stored in tabs in XLSX files, whereas in other years, they are CSVs broken down by quarters, or in other cases, by months, in CSV files
+- Given that this analysis focuses on historical ridership, a batch processing pipeline is sufficient, and can be scheduled to run monthly or quarterly.
+- It is unclear how often the data refreshes, but the following program handles edge cases and checks whether data has been updated before triggering pipelines
 
 ## Architecture
-- Initially, this project will deal with data in batch as the primary data sources we are dealing with get updated monthly
-- The bike share programs do seem to have real-time data feeds for the bike locations, but we will revisit that at a later time
-- We are going to create 2 pipeline flows: dev and prod
-    - dev:
-        - the dev pipeline will deploy using locally hosted components
-        - no terraform, postgres, prefect orion, dbt core, metabase
-    - prod:
-        - the prod pipeline will deploy using mostly hosted components in gcp
-        - terraform, prefect cloud, dbt cloud, gcs, bq, looker
+- The architecture for this project is kept fairly simple:
+![Architecture Diagram](./architecture.png)
 
 ## Data sources
 ### Toronto
 - Ridership data: https://open.toronto.ca/dataset/bike-share-toronto-ridership-data/
+- For batch data, here's an example of how to access the ridership data API:
+    ```python    
+    base_url = "https://ckan0.cf.opendata.inter.prod-toronto.ca"
+    package_url = base_url + "/api/3/action/package_show"
+    params = {"id": "bike-share-toronto-ridership-data"}
+    ```
+- If you do a GET request on the package_url with params provided like this:
+    ```resource = requests.get(url, params=params).json()```
+    - You can then grab the url where the data is stored like this:
+    ```resource["result"]["resources"]["url"]```
+    - And the url will be something like this:
+    https://ckan0.cf.opendata.inter.prod-toronto.ca/dataset/7e876c24-177c-4605-9cef-e50dd74c617f/resource/85326868-508c-497e-b139-b698aaf27bbf/download/bikeshare-ridership-2014-2015.xlsx
+    - You can then do another GET request on that URL and write to a file in Python
 
 ## Deployment instructions
 
@@ -97,7 +103,7 @@ terraform apply
 1. Once data is ready in your data lake, you can load data to bigquery tables
 2. Run the following code:
 ```shell
-bq query --use_legacy_sql=false --project_id=possible-lotus-375803 --location=northamerica-northeast1 --format=prettyjson < bq_reporting.sql
+bq query --use_legacy_sql=false --project_id=<INSERT_YOUR_PROJECT_ID> --location=<INSERT_YOUR_LOCATION> --format=prettyjson < bq_reporting.sql
 ```
 
 - And there you have it, all ridership data is available in BQ external tables ready for querying

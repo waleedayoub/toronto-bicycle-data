@@ -1,4 +1,3 @@
-
 locals {
   data_lake_bucket = "dtc-toronto-bikeshare"
 }
@@ -23,4 +22,3 @@ variable "BQ_DATASET" {
   type        = string
   default     = "toronto_bikeshare"
 }
-

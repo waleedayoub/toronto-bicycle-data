@@ -1,7 +1,7 @@
 import requests
 import csv
 
-# The URL of the 'station_information' feed
+# The URL of the 'station_information' feeds
 url = "https://tor.publicbikesystem.net/ube/gbfs/v1/en/station_information"
 
 # The name of the CSV file to save the data to

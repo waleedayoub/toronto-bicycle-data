@@ -24,72 +24,80 @@
 ## Data sources
 ### Toronto
 - Ridership data: https://open.toronto.ca/dataset/bike-share-toronto-ridership-data/
-- Neighbourhood profiles:
-    - info: https://www.toronto.ca/city-government/data-research-maps/neighbourhoods-communities/neighbourhood-profiles/
-    - data: https://open.toronto.ca/dataset/neighbourhood-profiles/
-
-### Montreal:
-- data: https://bixi.com/en/open-data
-
-### Vancouver:
-- Program developed by mobi bikes
-- data: https://www.mobibikes.ca/en/system-data
 
 ## Deployment instructions
 
-## Future considerations:
-- There appears to be a "mobility data" protocol called GBFS that consolidates data from many cities with mobility programs and various vehicle types
-- One possible alternative to the above is to build pipelines using the gbfs API: https://github.com/MobilityData/gbfs
-- This is a handy lookup that shows all cities with shared bike (and other mobility) data: https://github.com/MobilityData/gbfs/blob/master/systems.csv
+### Technologies used
+- GCP / Cloud Storage / BigQuery / Looker
+- Terraform
+- Prefect / DBT
+- Python 3.9.16 / virtualenv
 
-## Evaluation Criteria
-- Aiming to hit all parts of the [Evaluation Criteria](https://github.com/DataTalksClub/data-engineering-zoomcamp/blob/main/week_7_project/README.md):
-* Problem description
-    * 0 points: Problem is not described
-    * 1 point: Problem is described but shortly or not clearly 
-    * 2 points: Problem is well described and it's clear what the problem the project solves
-* Cloud
-    * 0 points: Cloud is not used, things run only locally
-    * 2 points: The project is developed in the cloud
-    * 4 points: The project is developed in the cloud and IaC tools are used
-* Data ingestion (choose either batch or stream)
-    * Batch / Workflow orchestration
-        * 0 points: No workflow orchestration
-        * 2 points: Partial workflow orchestration: some steps are orchestrated, some run manually
-        * 4 points: End-to-end pipeline: multiple steps in the DAG, uploading data to data lake
-    * Stream
-        * 0 points: No streaming system (like Kafka, Pulsar, etc)
-        * 2 points: A simple pipeline with one consumer and one producer
-        * 4 points: Using consumer/producers and streaming technologies (like Kafka streaming, Spark streaming, Flink, etc)
-* Data warehouse
-    * 0 points: No DWH is used
-    * 2 points: Tables are created in DWH, but not optimized
-    * 4 points: Tables are partitioned and clustered in a way that makes sense for the upstream queries (with explanation)
-* Transformations (dbt, spark, etc)
-    * 0 points: No tranformations
-    * 2 points: Simple SQL transformation (no dbt or similar tools)
-    * 4 points: Tranformations are defined with dbt, Spark or similar technologies
-* Dashboard
-    * 0 points: No dashboard
-    * 2 points: A dashboard with 1 tile
-    * 4 points: A dashboard with 2 tiles
-* Reproducibility
-    * 0 points: No instructions how to run code at all
-    * 2 points: Some instructions are there, but they are not complete
-    * 4 points: Instructions are clear, it's easy to run the code, and the code works
+### Things you need to install + versions
+- Google cloud SDK: https://cloud.google.com/sdk/docs/install
+- Terraform 1.4.5: https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli
+- Python: make sure you're running 3.9.16
+- Prefect 2.10.4: https://docs.prefect.io/latest/getting-started/installation/
+    - It is *very* important to get the prefect version right as GCS block's ```upload_from_dataframe()``` [method](https://prefecthq.github.io/prefect-gcp/cloud_storage/#prefect_gcp.cloud_storage.GcsBucket.upload_from_dataframe) doesn't work in older versions
 
+### Step 0
+- Clone or copy this repo
 
-## Going the extra mile 
+### Step 1 - Initial Setup + GCP
+1. Create a service account in GCP and download the service account json (In the IAM & Admin section of the GCP console)
+    - Make sure the service account has the following roles assigned:
+    - [IAM Roles](https://cloud.google.com/storage/docs/access-control/iam-roles) for Service account:
+    - Go to the *IAM* section of *IAM & Admin* https://console.cloud.google.com/iam-admin/iam
+    - Click the *Edit principal* icon for your service account.
+    - Add these roles in addition to *Viewer* : **Storage Admin** + **Storage Object Admin** + **BigQuery Admin**
+   
+2. Enable these APIs for your project:
+   - https://console.cloud.google.com/apis/library/iam.googleapis.com
+   - https://console.cloud.google.com/apis/library/iamcredentials.googleapis.com
+3. Ensure your environment variable is pointing to the .json file you downloaded from the GCP console, refresh your token session and verify the authentication. Here are the steps:
+```shell
+# Set your environment variable to where your .json file is located
+export GOOGLE_APPLICATION_CREDENTIALS="<path/to/your/service-account-authkeys>.json"
 
-If you finish the project and you want to improve it, here are a few things you can do:
+# Refresh token/session, and verify authentication
+gcloud auth application-default login
+```
+- Now you're ready to provision the services we'll need, using Terraform.
 
-* Add tests
-* Use make
-* Add CI/CD pipeline 
+### Step 2 - Terraform setup
+1. In the ```variables.tf``` file, modify the "project" variable description with the name of your GCP project:
+```shell
+variable "project" {
+  description = "possible-lotus-375803"
+}
+```
+2. Run the following:
+```shell
+cd terraform
+terraform init
+terraform apply
+```
+- You'll prompted to select your GCP project to proceed and provision the resources
 
-This is not covered in the course and this is entirely optional.
+### Step 3 - Install python requirements
+- Run ```pip install -r requirements.txt```
 
-If you plan to use this project as your portfolio project, it'll 
-definitely help you to stand out from others.
+### Step 4 - Run end to end pipeline for all ridership data using Prefect
+1. Ensure you have an account on [app.prefect.cloud](app.prefect.cloud)
+2. Create 2 blocks in prefect:
+    - GCP credentials block with your GCP project ID and key from your service account .json file
+    - GCS bucket block using the name of the bucket in the terraform ```dtc-toronto-bikeshare``` and the name of your GCP credentials block above
+3. In prefect cloud, grab an API key
+4. Run ```prefect cloud login```
+    - You can follow instructions or just copy in the API key from step 3
+5. Run ```python toronto_ridership.py```
+6. Wait for all steps in the DAG to complete
 
-> **Note**: this part will not be graded. 
+### Step 5 - Load data to BigQuery
+1. Once data is ready in your data lake, you can load data to bigquery tables
+2. Run the following code:
+```shell
+bq query --use_legacy_sql=false --project_id=possible-lotus-375803 --location=northamerica-northeast1 --format=prettyjson < bq_reporting.sql
+```
+
+- And there you have it, all ridership data is available in BQ external tables ready for querying

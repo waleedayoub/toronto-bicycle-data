@@ -125,21 +125,6 @@ def load_to_gcs(file_location: str, year: str, file: str) -> Path:
     return Path(f"{gcs_path}")
 
 
-# create a function to load data to bq from gcs
-@task(name="load_to_bq", log_prints=True, retries=3, retry_delay_seconds=30)
-def load_to_bq(file_path: Path):
-    """Load data from GCS to BigQuery"""
-    # load gcp credentials
-    gcp_credentials_block = GcpCredentials.load("de-gcp-creds")
-    result = bigquery_load_cloud_storage(
-        dataset="toronto_bikeshare",
-        table="stg_toronto_ridership",
-        uri=file_path,
-        gcp_credentials=gcp_credentials_block.get_credentials_from_service_account(),
-    )
-    return result
-
-
 @flow(name="toronto_ridership_main_flow", log_prints=True)
 def toronto_ridership_main_flow(
     package_url: str, params: dict, file_location: str

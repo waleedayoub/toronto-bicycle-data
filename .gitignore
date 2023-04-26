@@ -8,6 +8,8 @@ deproject/
 # Notes & code
 scratchnotes.md
 testgcs.py
+flows/toronto_reporting_pipeline.py
+flows/toronto_stations.py
 
 # MacOS
 .DS_Store
